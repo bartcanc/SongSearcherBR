@@ -1,53 +1,78 @@
 package com.example.songsearcher
-
-import androidx.activity.enableEdgeToEdge
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import okhttp3.*
+import org.json.JSONException
+import org.json.JSONObject
+import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
 
-    private val apiKey: String = BuildConfig.MUSIXMATCH_API_KEY
+    private lateinit var songAdapter: SongAdapter
+    private val client = OkHttpClient()
 
+    @SuppressLint("MissingInflatedId")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val lyricsEditText: EditText = findViewById(R.id.lyricsEditText)
+        val recyclerView: RecyclerView = findViewById(R.id.recyclerView)
         val searchButton: Button = findViewById(R.id.searchButton)
-        val resultsTextView: TextView = findViewById(R.id.resultsTextView)
+        val lyricsEditText: EditText = findViewById(R.id.lyricsEditText)
+
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        songAdapter = SongAdapter(emptyList())
+        recyclerView.adapter = songAdapter
 
         searchButton.setOnClickListener {
             val lyrics = lyricsEditText.text.toString()
-            searchTracks(lyrics, resultsTextView)
+            searchSongs(lyrics)
         }
     }
 
-    private fun searchTracks(lyrics: String, resultsTextView: TextView) {
-        val call = RetrofitClient.instance.searchTracks(lyrics, apiKey)
-        call.enqueue(object : Callback<MusixmatchResponse> {
-            override fun onResponse(
-                call: Call<MusixmatchResponse>,
-                response: Response<MusixmatchResponse>
-            ) {
-                if (response.isSuccessful) {
-                    val trackList = response.body()?.message?.body?.trackList ?: emptyList()
-                    val results = trackList.joinToString("\n") { it.track.trackName + " by " + it.track.artistName }
-                    resultsTextView.text = results
-                } else {
-                    resultsTextView.text = "No results found."
-                }
+    private fun searchSongs(lyrics: String) {
+        val url = "https://api.musixmatch.com/ws/1.1/track.search?q_lyrics=$lyrics&apikey=${BuildConfig.MUSIXMATCH_API_KEY}"
+        val request = Request.Builder().url(url).build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
             }
 
-            override fun onFailure(call: Call<MusixmatchResponse>, t: Throwable) {
-                resultsTextView.text = "Error: " + t.message
+            override fun onResponse(call: Call, response: Response) {
+                val responseBody = response.body?.string()
+                if (responseBody != null) {
+                    Log.d("API_RESPONSE", responseBody)
+                    try {
+                        val jsonObject = JSONObject(responseBody)
+                        val trackList = jsonObject.getJSONObject("message").getJSONObject("body").getJSONArray("track_list")
+                        val songs = mutableListOf<Song>()
+                        for (i in 0 until trackList.length()) {
+                            val trackObject = trackList.getJSONObject(i).getJSONObject("track")
+                            val trackId = trackObject.getInt("track_id")
+                            val trackName = trackObject.getString("track_name")
+                            val musicBrainzId = trackObject.optString("musicbrainz_album_id", "")
+                            val artistName = trackObject.getString("artist_name")
+
+                            val song = Song(trackId, trackName, "", musicBrainzId, artistName)
+                            songs.add(song)
+                        }
+
+                        runOnUiThread {
+                            songAdapter.updateSongs(songs)
+                        }
+                    } catch (e: JSONException) {
+                        e.printStackTrace()
+                    }
+                } else {
+                    Log.e("API_ERROR", "Empty response body")
+                }
             }
         })
     }
