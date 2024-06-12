@@ -15,11 +15,14 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-        //buildConfigField ("String", "MUSIXMATCH_API_KEY", "\"" + (project.properties["musixmatchApiKey"] ?: "") + "\"")
+        buildConfigField ("String", "MUSIXMATCH_API_KEY", "\"" + (project.properties["musixmatchApiKey"] ?: "") + "\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    buildFeatures{
+        buildConfig = true
+    }
     buildTypes {
         release {
             isMinifyEnabled = false

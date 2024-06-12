@@ -14,7 +14,7 @@ import retrofit2.Response
 
 class MainActivity : AppCompatActivity() {
 
-    private val apiKey = "690b1c80b901a698972174631e19a9fe"
+    private val apiKey: String = BuildConfig.MUSIXMATCH_API_KEY
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
